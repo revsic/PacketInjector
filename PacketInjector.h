@@ -9,7 +9,6 @@
 #include "Protocol/Tcp.h"
 
 #define BLOCK_MSG "HTTP/1.1 302 Found\nLocation: https://en.wikipedia.org/wiki/HTTP_302\n"
-#define TCP_FLAG_FIN 1
 
 class PacketInjector {
 private:
@@ -20,8 +19,9 @@ public:
   PacketInjector(pcap_t* p_handle);
 
   int run(const unsigned char* p_packet);
-  int sendForwardFin(IPv4& ip, TCP& tcp);
-  int sendBackwardFin(Ethernet& eth, IPv4& ip, TCP& tcp);
+  int setProperty(IPv4& ip, TCP& tcp, unsigned short flags, const char *msg);
+  int injectForward(IPv4& ip, TCP& tcp);
+  int injectBackward(Ethernet& eth, IPv4& ip, TCP& tcp);
 };
 
 #endif

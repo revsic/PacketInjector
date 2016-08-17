@@ -6,6 +6,8 @@
 #include "IPv4.h"
 
 #define TCP_PORT_HTTP htons(80)
+#define TCP_FLAG_FIN 1
+#define TCP_FLAG_RST 4
 
 class TCP {
 private:

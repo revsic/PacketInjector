@@ -21,38 +21,47 @@ int PacketInjector::run(const unsigned char* p_packet) {
           if (tmp) *tmp = '\0';
           std::cout << "[*] blocked : " << tcp.pdat.data << std::endl;
 
-          int result = sendBackwardFin(eth, ip, tcp);
-          if (result == -1) {
-            std::cout << "[*] err : " << pcap_geterr(handle) << std::endl;
-            return -1;
-          }
+          injectForward(ip, tcp);
+          injectBackward(eth, ip, tcp);
         }
       }
     }
   }
 }
 
-int PacketInjector::sendForwardFin(IPv4& ip, TCP& tcp) {
-  int tcp_hdrlen = tcp.phdr->tcp_header_len << 2;
-  tcp.phdr->tcp_flags |= 1;
-  tcp.phdr->tcp_seq_num = htonl(ntohl(tcp.phdr->tcp_seq_num) + tcp.pdat.length);
+int PacketInjector::setProperty(IPv4& ip, TCP& tcp, unsigned short flag, const char* msg) {
+  tcp.phdr->tcp_flags |= flag;
 
+  int msg_len = strlen(msg);
+  int tcp_hdrlen = tcp.phdr->tcp_header_len << 2;
   int ip_hdrlen = ip.phdr->ip_header_len << 2;
-  int ip_len = ip_hdrlen + tcp_hdrlen + strlen(BLOCK_MSG);
+  int ip_len = ip_hdrlen + tcp_hdrlen + msg_len;
+
   ip.phdr->ip_len = htons(ip_len);
-  strcpy((char *)tcp.pdat.data, BLOCK_MSG);
-  tcp.pdat.length = strlen(BLOCK_MSG);
+  strcpy((char *)tcp.pdat.data, msg);
+  tcp.pdat.length = strlen(msg);
 
   ip.makeChecksum();
   tcp.makeChecksum(ip);
 
+  return ip_len;
+}
+
+int PacketInjector::injectForward(IPv4& ip, TCP& tcp) {
+  u_int32_t seqtmp = tcp.phdr->tcp_seq_num;
+  tcp.phdr->tcp_seq_num = htonl(ntohl(seqtmp) + tcp.pdat.length);
+
+  int ip_len = setProperty(ip, tcp, TCP_FLAG_RST, "");
   int total_len = ETHER_HEAD_LEN + ip_len;
   int result = pcap_sendpacket(handle, packet, total_len);
+
+  tcp.phdr->tcp_seq_num = seqtmp;
+  tcp.phdr->tcp_flags ^= TCP_FLAG_RST;
 
   return result;
 }
 
-int PacketInjector::sendBackwardFin(Ethernet& eth, IPv4& ip, TCP& tcp) {
+int PacketInjector::injectBackward(Ethernet& eth, IPv4& ip, TCP& tcp) {
   for (int i = 0; i < ETHER_ADDR_LEN; ++i) {
     u_int8_t etmp = eth.phdr->ether_dhost[i];
     eth.phdr->ether_dhost[i] = eth.phdr->ether_shost[i];
@@ -67,22 +76,11 @@ int PacketInjector::sendBackwardFin(Ethernet& eth, IPv4& ip, TCP& tcp) {
   tcp.phdr->tcp_dport = tcp.phdr->tcp_sport;
   tcp.phdr->tcp_sport = ptmp;
 
-  tcp.phdr->tcp_flags |= TCP_FLAG_FIN;
   u_int32_t atmp = tcp.phdr->tcp_ack_num;
   tcp.phdr->tcp_ack_num = htonl(ntohl(tcp.phdr->tcp_seq_num) + tcp.pdat.length);
   tcp.phdr->tcp_seq_num = atmp;
 
-  int tcp_hdrlen = tcp.phdr->tcp_header_len << 2;
-  int ip_hdrlen = ip.phdr->ip_header_len << 2;
-  int ip_len = ip_hdrlen + tcp_hdrlen + strlen(BLOCK_MSG);
-  ip.phdr->ip_len = htons(ip_len);
-
-  strcpy((char *)tcp.pdat.data, BLOCK_MSG);
-  tcp.pdat.length = strlen(BLOCK_MSG);
-
-  ip.makeChecksum();
-  tcp.makeChecksum(ip);
-
+  int ip_len = setProperty(ip, tcp, TCP_FLAG_FIN, BLOCK_MSG);
   int total_len = ETHER_HEAD_LEN + ip_len;
   int result = pcap_sendpacket(handle, packet, total_len);
 
