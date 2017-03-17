@@ -33,3 +33,31 @@ int PacketInjector::injectForward(IPv4& ip, TCP& tcp) {
     return result;
 }
 ```
+
+```cpp
+int PacketInjector::injectBackward(Ethernet& eth, IPv4& ip, TCP& tcp) {
+  for (int i = 0; i < ETHER_ADDR_LEN; ++i) {
+    u_int8_t etmp = eth.phdr->ether_dhost[i];
+    eth.phdr->ether_dhost[i] = eth.phdr->ether_shost[i];
+    eth.phdr->ether_shost[i] = etmp;
+  }
+
+  struct in_addr itmp = ip.phdr->ip_dst;
+  ip.phdr->ip_dst = ip.phdr->ip_src;
+  ip.phdr->ip_src = itmp;
+
+  u_int16_t ptmp = tcp.phdr->tcp_dport;
+  tcp.phdr->tcp_dport = tcp.phdr->tcp_sport;
+  tcp.phdr->tcp_sport = ptmp;
+
+  u_int32_t atmp = tcp.phdr->tcp_ack_num;
+  tcp.phdr->tcp_ack_num = htonl(ntohl(tcp.phdr->tcp_seq_num) + tcp.pdat.length);
+  tcp.phdr->tcp_seq_num = atmp;
+
+  int ip_len = setProperty(ip, tcp, TCP_FLAG_FIN, BLOCK_MSG);
+  int total_len = ETHER_HEAD_LEN + ip_len;
+  int result = pcap_sendpacket(handle, packet, total_len);
+
+  return result;
+}
+```
