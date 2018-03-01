@@ -1,8 +1,8 @@
 # Packet-Injection
 
-detect certain packet and inject forward or backward
+Detect specific packet and inject forward or backward
 
-1. detect certain packet : ex) HTTP GET
+1. Detect specific packet : ex) HTTP GET
 ```cpp
 if (tcp.phdr->tcp_dport == TCP_PORT_HTTP) {
     if (tcp.pdat.length && !strncmp((char *)tcp.pdat.data, "GET", 3)) {
@@ -17,7 +17,7 @@ if (tcp.phdr->tcp_dport == TCP_PORT_HTTP) {
 }
 ```
 
-2. inject packet backward or forward : ex) HTTP 302 redirect, fin or rst flag packet
+2. inject forward or backward : ex) HTTP 302 redirect, fin or rst flag packet
 ```cpp
 int PacketInjector::injectForward(IPv4& ip, TCP& tcp) {
     u_int32_t seqtmp = tcp.phdr->tcp_seq_num;
